@@ -50,6 +50,9 @@ public class RNPushNotification extends ReactContextBaseJavaModule implements Ac
         mJsDelivery = new RNPushNotificationJsDelivery(reactContext);
 
         registerNotificationsRegistration();
+        
+        createChannel("beep_short", "General", "Notifications for booking/bill updates", "beep_short.wav");
+        createChannel("beep_long", "Urgent", "Notifications for booking/bill requests", "beep_long.wav");
     }
 
     @Override
@@ -184,6 +187,49 @@ public class RNPushNotification extends ReactContextBaseJavaModule implements Ac
     @ReactMethod
     public void setApplicationIconBadgeNumber(int number) {
         ApplicationBadgeHelper.INSTANCE.setApplicationIconBadgeNumber(getReactApplicationContext(), number);
+    }
+    
+    public void createChannel(String channelId, String name, String description, String soundName) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+
+        Context context = getReactApplicationContext();
+        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+
+        NotificationChannel channel = new NotificationChannel(channelId, name, NotificationManager.IMPORTANCE_HIGH);
+        channel.enableLights(true);
+        channel.enableVibration(true);
+        channel.setDescription(description);
+
+        Uri soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        if (soundName != null) {
+            if (!"default".equalsIgnoreCase(soundName)) {
+
+                // sound name can be full filename, or just the resource name.
+                // So the strings 'my_sound.mp3' AND 'my_sound' are accepted
+                // The reason is to make the iOS and android javascript interfaces compatible
+
+                int resId;
+                if (context.getResources().getIdentifier(soundName, "raw", context.getPackageName()) != 0) {
+                    resId = context.getResources().getIdentifier(soundName, "raw", context.getPackageName());
+                } else {
+                    soundName = soundName.substring(0, soundName.lastIndexOf('.'));
+                    resId = context.getResources().getIdentifier(soundName, "raw", context.getPackageName());
+                }
+
+                soundUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + resId);
+            }
+        }
+
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .build();
+
+        channel.setSound(soundUri, audioAttributes);
+
+        notificationManager.createNotificationChannel(channel);
     }
 
     // removed @Override temporarily just to get it working on different versions of RN
